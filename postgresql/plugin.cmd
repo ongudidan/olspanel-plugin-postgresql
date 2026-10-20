@@ -16,11 +16,22 @@ fi
 
 echo "🚀 OLSPanel base directory detected: $BASE_DIR"
 
-# 1. Deploy the Django PostgreSQL module
-MODULE_SRC="$BASE_DIR/3rdparty/postgresql/modules/postgresql"
-MODULE_DEST="$BASE_DIR/modules/postgresql"
+# 1. Locate and deploy the Django PostgreSQL module
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MODULE_SRC=""
+for candidate in \
+  "$SCRIPT_DIR/modules/postgresql" \
+  "$BASE_DIR/3rdparty/postgresql/modules/postgresql" \
+  "$BASE_DIR/3rdparty/phppgadmin/modules/postgresql" \
+  "$(pwd)/modules/postgresql"; do
+  if [ -d "$candidate" ] && [ -f "$candidate/urls.py" ]; then
+    MODULE_SRC="$candidate"
+    break
+  fi
+done
 
-if [ -d "$MODULE_SRC" ]; then
+MODULE_DEST="$BASE_DIR/modules/postgresql"
+if [ -n "$MODULE_SRC" ] && [ -d "$MODULE_SRC" ]; then
   mkdir -p "$MODULE_DEST"
   cp -rf "$MODULE_SRC"/* "$MODULE_DEST"/
   sed -i 's/\r$//' "$MODULE_DEST/psql.sh" 2>/dev/null || true
@@ -29,16 +40,29 @@ if [ -d "$MODULE_SRC" ]; then
   chmod -R 755 "$MODULE_DEST" 2>/dev/null || true
   echo "✅ Django PostgreSQL module deployed to $MODULE_DEST"
 else
-  echo "⚠️ Warning: Django module source not found at $MODULE_SRC"
+  echo "⚠️ Warning: Django module source not found in standard paths"
 fi
 
-# 2. Deploy phpPgAdmin web interface to 3rdparty
-PGADMIN_SRC="$BASE_DIR/3rdparty/postgresql/phppgadmin"
-PGADMIN_DEST="$BASE_DIR/3rdparty/phppgadmin"
+# 2. Locate and deploy phpPgAdmin web interface directly to $BASE_DIR/3rdparty/phppgadmin/
+PGADMIN_SRC=""
+for candidate in \
+  "$SCRIPT_DIR/phppgadmin" \
+  "$BASE_DIR/3rdparty/postgresql/phppgadmin" \
+  "$BASE_DIR/3rdparty/phppgadmin/phppgadmin" \
+  "$(pwd)/phppgadmin"; do
+  if [ -d "$candidate" ] && [ -f "$candidate/index.php" ]; then
+    PGADMIN_SRC="$candidate"
+    break
+  fi
+done
 
-if [ -d "$PGADMIN_SRC" ]; then
+PGADMIN_DEST="$BASE_DIR/3rdparty/phppgadmin"
+if [ -n "$PGADMIN_SRC" ] && [ -d "$PGADMIN_SRC" ]; then
   mkdir -p "$PGADMIN_DEST"
   cp -rf "$PGADMIN_SRC"/* "$PGADMIN_DEST"/
+  # Clean up any stale nested directories if previously unpacked incorrectly
+  rm -rf "$PGADMIN_DEST/phppgadmin" 2>/dev/null || true
+  rm -rf "$PGADMIN_DEST/modules" 2>/dev/null || true
   chown -R www-data:www-data "$PGADMIN_DEST" 2>/dev/null || true
   chmod -R 755 "$PGADMIN_DEST" 2>/dev/null || true
   echo "✅ phpPgAdmin web interface deployed to $PGADMIN_DEST"
@@ -47,38 +71,59 @@ fi
 # 3. Deploy configuration files to $BASE_DIR/plugin/
 mkdir -p "$BASE_DIR/plugin"
 
-for conf_name in "plugin_postgresql.conf" "plugin_phppgadmin.conf" "postgresql.conf" "phppgadmin.conf"; do
-  if [ -f "$BASE_DIR/3rdparty/postgresql/$conf_name" ]; then
-    target_name=$(echo "$conf_name" | sed 's/^plugin_//')
-    cp -f "$BASE_DIR/3rdparty/postgresql/$conf_name" "$BASE_DIR/plugin/$target_name"
-    chown www-data:www-data "$BASE_DIR/plugin/$target_name" 2>/dev/null || true
+# Search directories for config sources
+for conf_dir in "$SCRIPT_DIR" "$BASE_DIR/3rdparty/postgresql" "$BASE_DIR/3rdparty/phppgadmin"; do
+  if [ -f "$conf_dir/plugin_postgresql.conf" ]; then
+    cp -f "$conf_dir/plugin_postgresql.conf" "$BASE_DIR/plugin/postgresql.conf"
+  elif [ -f "$conf_dir/postgresql.conf" ]; then
+    cp -f "$conf_dir/postgresql.conf" "$BASE_DIR/plugin/postgresql.conf"
+  fi
+
+  if [ -f "$conf_dir/phppgadmin.conf" ]; then
+    cp -f "$conf_dir/phppgadmin.conf" "$BASE_DIR/plugin/phppgadmin.conf"
+  elif [ -f "$conf_dir/plugin_phppgadmin.conf" ]; then
+    cp -f "$conf_dir/plugin_phppgadmin.conf" "$BASE_DIR/plugin/phppgadmin.conf"
+  fi
+
+  if [ -f "$conf_dir/plugin_postgresql.json" ]; then
+    cp -f "$conf_dir/plugin_postgresql.json" "$BASE_DIR/plugin/postgresql.json"
+  elif [ -f "$conf_dir/postgresql.json" ]; then
+    cp -f "$conf_dir/postgresql.json" "$BASE_DIR/plugin/postgresql.json"
+  fi
+
+  if [ -f "$conf_dir/phppgadmin.json" ]; then
+    cp -f "$conf_dir/phppgadmin.json" "$BASE_DIR/plugin/phppgadmin.json"
+  elif [ -f "$conf_dir/plugin_phppgadmin.json" ]; then
+    cp -f "$conf_dir/plugin_phppgadmin.json" "$BASE_DIR/plugin/phppgadmin.json"
   fi
 done
 
-for json_name in "plugin_postgresql.json" "plugin_phppgadmin.json" "postgresql.json" "phppgadmin.json"; do
-  if [ -f "$BASE_DIR/3rdparty/postgresql/$json_name" ]; then
-    target_name=$(echo "$json_name" | sed 's/^plugin_//')
-    cp -f "$BASE_DIR/3rdparty/postgresql/$json_name" "$BASE_DIR/plugin/$target_name"
-    chown www-data:www-data "$BASE_DIR/plugin/$target_name" 2>/dev/null || true
-  fi
-done
+chown www-data:www-data "$BASE_DIR/plugin/postgresql."* 2>/dev/null || true
+chown www-data:www-data "$BASE_DIR/plugin/phppgadmin."* 2>/dev/null || true
 echo "✅ Plugin configurations deployed to $BASE_DIR/plugin"
 
 # 4. Deploy SVG & PNG Icons
 mkdir -p "$BASE_DIR/media/icon"
-if [ -f "$BASE_DIR/3rdparty/postgresql/plugin_icon.svg" ]; then
-  cp -f "$BASE_DIR/3rdparty/postgresql/plugin_icon.svg" "$BASE_DIR/media/icon/postgresql.svg"
-  cp -f "$BASE_DIR/3rdparty/postgresql/plugin_icon.svg" "$BASE_DIR/media/icon/phppgadmin.svg" 2>/dev/null || true
-  chown www-data:www-data "$BASE_DIR/media/icon/postgresql.svg" "$BASE_DIR/media/icon/phppgadmin.svg" 2>/dev/null || true
-  chmod 644 "$BASE_DIR/media/icon/postgresql.svg" "$BASE_DIR/media/icon/phppgadmin.svg" 2>/dev/null || true
-fi
+for icon_dir in "$SCRIPT_DIR" "$BASE_DIR/3rdparty/postgresql" "$BASE_DIR/3rdparty/phppgadmin"; do
+  if [ -f "$icon_dir/plugin_icon.svg" ]; then
+    cp -f "$icon_dir/plugin_icon.svg" "$BASE_DIR/media/icon/postgresql.svg"
+    cp -f "$icon_dir/plugin_icon.svg" "$BASE_DIR/media/icon/phppgadmin.svg" 2>/dev/null || true
+    break
+  fi
+done
 
-if [ -f "$BASE_DIR/3rdparty/postgresql/plugin_icon.png" ]; then
-  cp -f "$BASE_DIR/3rdparty/postgresql/plugin_icon.png" "$BASE_DIR/media/icon/postgresql.png"
-  cp -f "$BASE_DIR/3rdparty/postgresql/plugin_icon.png" "$BASE_DIR/media/icon/phppgadmin.png" 2>/dev/null || true
-  chown www-data:www-data "$BASE_DIR/media/icon/postgresql.png" "$BASE_DIR/media/icon/phppgadmin.png" 2>/dev/null || true
-  chmod 644 "$BASE_DIR/media/icon/postgresql.png" "$BASE_DIR/media/icon/phppgadmin.png" 2>/dev/null || true
-fi
+for icon_dir in "$SCRIPT_DIR" "$BASE_DIR/3rdparty/postgresql" "$BASE_DIR/3rdparty/phppgadmin"; do
+  if [ -f "$icon_dir/plugin_icon.png" ]; then
+    cp -f "$icon_dir/plugin_icon.png" "$BASE_DIR/media/icon/postgresql.png"
+    cp -f "$icon_dir/plugin_icon.png" "$BASE_DIR/media/icon/phppgadmin.png" 2>/dev/null || true
+    break
+  fi
+done
+
+chown www-data:www-data "$BASE_DIR/media/icon/postgresql."* 2>/dev/null || true
+chown www-data:www-data "$BASE_DIR/media/icon/phppgadmin."* 2>/dev/null || true
+chmod 644 "$BASE_DIR/media/icon/postgresql."* 2>/dev/null || true
+chmod 644 "$BASE_DIR/media/icon/phppgadmin."* 2>/dev/null || true
 echo "✅ Vector and PNG icons deployed to $BASE_DIR/media/icon/"
 
 # 5. Detect and Install PostgreSQL Server if not installed
@@ -105,7 +150,6 @@ systemctl restart postgresql 2>/dev/null || systemctl start postgresql 2>/dev/nu
 mkdir -p "$BASE_DIR/etc"
 ADMIN_PASS_FILE="$BASE_DIR/etc/postgresqlPassword"
 if [ ! -f "$ADMIN_PASS_FILE" ] || [ ! -s "$ADMIN_PASS_FILE" ]; then
-  # Generate strong random 16-character alphanumeric password
   ADMIN_PASS=$(head -c 32 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 16)
   echo "$ADMIN_PASS" > "$ADMIN_PASS_FILE"
   chmod 600 "$ADMIN_PASS_FILE"
