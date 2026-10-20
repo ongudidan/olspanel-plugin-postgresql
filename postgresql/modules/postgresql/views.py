@@ -271,8 +271,9 @@ def phppgadmin_admin(request):
         response.set_cookie(
             cookie_prefix + cookie_name,
             cookie_value,
+            path='/',
             httponly=True,
-            secure=True,
+            secure=request.is_secure(),
             samesite='Lax',
         )
 
@@ -330,8 +331,9 @@ def phppgadmin(request):
         response.set_cookie(
             cookie_prefix + cookie_name,
             cookie_value,
+            path='/',
             httponly=True,
-            secure=True,
+            secure=request.is_secure(),
             samesite='Lax',
         )
 

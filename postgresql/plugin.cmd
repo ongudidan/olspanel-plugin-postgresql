@@ -185,15 +185,19 @@ if command -v psql >/dev/null 2>&1; then
   fi
 fi
 
-# 7. Install PHP PostgreSQL extensions for CLI and OpenLiteSpeed LSPHP
+# 7. Install PHP PostgreSQL extensions for CLI, CGI, and OpenLiteSpeed LSPHP
 echo "🐘 Installing PHP PostgreSQL client extensions..."
 if command -v apt-get >/dev/null 2>&1; then
-  apt-get install -y --no-install-recommends php-pgsql 2>/dev/null || true
-  apt-get install -y --no-install-recommends lsphp81-pgsql lsphp82-pgsql lsphp83-pgsql lsphp84-pgsql lsphp85-pgsql 2>/dev/null || true
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -y 2>/dev/null || true
+  apt-get install -y --no-install-recommends \
+    php-pgsql \
+    php8.1-pgsql php8.2-pgsql php8.3-pgsql php8.4-pgsql php8.5-pgsql \
+    lsphp81-pgsql lsphp82-pgsql lsphp83-pgsql lsphp84-pgsql lsphp85-pgsql 2>/dev/null || true
 elif command -v dnf >/dev/null 2>&1; then
-  dnf install -y php-pgsql lsphp81-pgsql lsphp82-pgsql lsphp83-pgsql lsphp84-pgsql 2>/dev/null || true
+  dnf install -y php-pgsql php8.1-pgsql php8.2-pgsql php8.3-pgsql php8.4-pgsql lsphp81-pgsql lsphp82-pgsql lsphp83-pgsql lsphp84-pgsql 2>/dev/null || true
 elif command -v yum >/dev/null 2>&1; then
-  yum install -y php-pgsql lsphp81-pgsql lsphp82-pgsql lsphp83-pgsql lsphp84-pgsql 2>/dev/null || true
+  yum install -y php-pgsql php8.1-pgsql php8.2-pgsql php8.3-pgsql php8.4-pgsql lsphp81-pgsql lsphp82-pgsql lsphp83-pgsql lsphp84-pgsql 2>/dev/null || true
 fi
 
 # 8. Asynchronously restart OLSPanel backend & OpenLiteSpeed web server

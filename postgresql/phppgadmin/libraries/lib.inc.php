@@ -85,9 +85,9 @@ if (isset($_GET['auto_login']) && $_GET['auto_login']) {
 
 		unset($_SESSION['sharedUsername'], $_SESSION['sharedPassword']);
 
-    // Pull defaults from config for that server index
-    $user = $conf['servers'][0]['default_user'] ?? null;
-    $pass = $conf['servers'][0]['default_password'] ?? null;
+    // Pull defaults from config for that server index, with fallback to environment headers
+    $user = (!empty($conf['servers'][0]['default_user'])) ? $conf['servers'][0]['default_user'] : ($_SERVER['HTTP_AUTOLOGINUSER'] ?? null);
+    $pass = (!empty($conf['servers'][0]['default_password'])) ? $conf['servers'][0]['default_password'] : ($_SERVER['HTTP_AUTOLOGINPASS'] ?? null);
  
     // As an additional safety, only proceed if both are set
     if ($user && $pass) {
