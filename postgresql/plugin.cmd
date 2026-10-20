@@ -91,11 +91,8 @@ for conf_dir in "$SCRIPT_DIR" "$BASE_DIR/3rdparty/postgresql" "$BASE_DIR/3rdpart
     cp -f "$conf_dir/postgresql.json" "$BASE_DIR/plugin/postgresql.json"
   fi
 
-  if [ -f "$conf_dir/phppgadmin.json" ]; then
-    cp -f "$conf_dir/phppgadmin.json" "$BASE_DIR/plugin/phppgadmin.json"
-  elif [ -f "$conf_dir/plugin_phppgadmin.json" ]; then
-    cp -f "$conf_dir/plugin_phppgadmin.json" "$BASE_DIR/plugin/phppgadmin.json"
-  fi
+  # Remove any legacy duplicate phppgadmin.json so it never appears twice in dashboard
+  rm -f "$BASE_DIR/plugin/phppgadmin.json" "$BASE_DIR/plugin/plugin_phppgadmin.json" 2>/dev/null || true
 done
 
 chown www-data:www-data "$BASE_DIR/plugin/postgresql."* 2>/dev/null || true
