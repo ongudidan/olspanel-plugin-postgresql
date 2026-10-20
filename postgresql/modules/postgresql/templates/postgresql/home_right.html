@@ -1,0 +1,57 @@
+<style>
+/* --- PostgreSQL Module Loader Only (No Conflict) --- */
+.pgsql-loader {
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #4CAF50;
+  border-radius: 50%;
+  width: 14px;
+  height: 14px;
+  animation: pgsql-spin 1s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+@keyframes pgsql-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+</style>
+
+<div id="postgresql-container">
+  <div class="bottom-border_right">
+    <div class="infotitle">PostgreSQL® Disk Usage</div>
+    <div class="infovalue" id="pg-disk">
+      Loading... <span class="pgsql-loader"></span>
+    </div>
+  </div>
+
+  <div class="bottom-border_right">
+    <div class="infotitle">PostgreSQL Database</div>
+    <div class="infovalue" id="pg-dbcount">
+      Loading... <span class="pgsql-loader"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  fetch("/module/postgresql/home/?format=json")
+    .then(response => response.json())
+    .then(data => {
+      // Replace loader with live data
+      document.getElementById("pg-disk").innerHTML =
+        `${data.pdisk_use_db} / ${data.pdisk_space} MB`;
+
+      document.getElementById("pg-dbcount").innerHTML =
+        `${data.pdatabases_use} / ${data.pdatabases}`;
+    })
+    .catch(err => {
+      document.getElementById("pg-disk").innerHTML =
+        "<span style='color:red'>Error loading</span>";
+      document.getElementById("pg-dbcount").innerHTML =
+        "<span style='color:red'>Error loading</span>";
+      console.error("PostgreSQL data load failed:", err);
+    });
+});
+</script>

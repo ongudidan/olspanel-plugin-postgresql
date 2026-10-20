@@ -1,0 +1,15 @@
+# Ignore build zip archives
+*.zip
+
+# OS / Editor configuration files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+__pycache__/
+*.py[cod]
