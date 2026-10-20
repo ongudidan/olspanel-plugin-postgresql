@@ -168,10 +168,12 @@ if command -v psql >/dev/null 2>&1; then
     cp -a "$PG_HBA" "${PG_HBA}.bak" 2>/dev/null || true
   fi
 
-  # Attempt password change via runuser/su as postgres user
-  runuser -l postgres -c "psql -v ON_ERROR_STOP=1 -q -c \"ALTER USER postgres WITH PASSWORD '$ADMIN_PASS';\"" 2>/dev/null || \
-  su - postgres -c "psql -v ON_ERROR_STOP=1 -q -c \"ALTER USER postgres WITH PASSWORD '$ADMIN_PASS';\"" 2>/dev/null || \
-  PGPASSWORD="$ADMIN_PASS" psql -U postgres -h localhost -c "SELECT 1;" 2>/dev/null || true
+  # Attempt password change via peer auth first, then with existing password if already set
+  # Using -w (--no-password) guarantees psql will never block waiting for interactive stdin
+  sudo -u postgres psql -w -v ON_ERROR_STOP=1 -q -c "ALTER USER postgres WITH PASSWORD '$ADMIN_PASS';" 2>/dev/null || \
+  runuser -u postgres -- psql -w -v ON_ERROR_STOP=1 -q -c "ALTER USER postgres WITH PASSWORD '$ADMIN_PASS';" 2>/dev/null || \
+  PGPASSWORD="$ADMIN_PASS" psql -w -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 -q -c "ALTER USER postgres WITH PASSWORD '$ADMIN_PASS';" 2>/dev/null || \
+  PGPASSWORD="$ADMIN_PASS" psql -w -U postgres -v ON_ERROR_STOP=1 -q -c "ALTER USER postgres WITH PASSWORD '$ADMIN_PASS';" 2>/dev/null || true
 
   # Ensure password authentication is enabled in pg_hba.conf
   if [ -n "$PG_HBA" ]; then
