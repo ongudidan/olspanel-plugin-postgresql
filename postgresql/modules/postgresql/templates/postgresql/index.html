@@ -17,7 +17,7 @@
         </div>
         <div class="flex items-center gap-2">
             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> {{ databases|length }} DB{{ databases|length|pluralize }}
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> {{ databases|length }} DB{{ databases|length|pluralize }}{% if pg_limit_display %} / {{ pg_limit_display }}{% endif %}
             </span>
             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
                 <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> {{ userlists|length }} User{{ userlists|length|pluralize }}

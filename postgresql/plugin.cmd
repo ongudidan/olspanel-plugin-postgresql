@@ -197,7 +197,33 @@ elif command -v yum >/dev/null 2>&1; then
   yum install -y php-pgsql php8.1-pgsql php8.2-pgsql php8.3-pgsql php8.4-pgsql lsphp81-pgsql lsphp82-pgsql lsphp83-pgsql lsphp84-pgsql 2>/dev/null || true
 fi
 
-# 8. Asynchronously restart OLSPanel backend & OpenLiteSpeed web server
+# 8. Ensure package database schema supports PostgreSQL limits
+echo "🔄 Ensuring package schema supports PostgreSQL limits..."
+PYTHON_BIN="python3"
+if [ -x "/root/venv/bin/python" ]; then
+  PYTHON_BIN="/root/venv/bin/python"
+fi
+
+$PYTHON_BIN -c "
+import sys, os
+sys.path.insert(0, '$BASE_DIR')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'user_management.settings')
+try:
+    import django
+    django.setup()
+    from django.db import connection
+    with connection.cursor() as cursor:
+        cursor.execute(\"SHOW COLUMNS FROM packages LIKE 'postgresql_databases'\")
+        if not cursor.fetchone():
+            cursor.execute(\"ALTER TABLE packages ADD COLUMN postgresql_databases INT(11) DEFAULT 0\")
+            print('✅ Added postgresql_databases column to packages table')
+        else:
+            print('ℹ️ Column postgresql_databases already exists in packages table')
+except Exception as e:
+    print(f'⚠️ Warning checking package schema: {e}')
+" 2>/dev/null || true
+
+# 9. Asynchronously restart OLSPanel backend & OpenLiteSpeed web server
 if systemctl is-active --quiet cp 2>/dev/null; then
   (sleep 2 && systemctl restart cp) &
   echo "🔄 Scheduled OLSPanel backend restart..."

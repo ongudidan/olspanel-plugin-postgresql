@@ -47,9 +47,24 @@ def index(request):
     databases = database_info.get("databases", [])
     userlists = list_postgresql_users(username)
 
+    pg_limit = 0
+    try:
+        user_data = get_user_data_by_id(request.user.id)
+        pkg_id = user_data.get('pkg_id') if user_data else None
+        if pkg_id:
+            user_package = Package.objects.filter(id=pkg_id).first()
+            if user_package:
+                pg_limit = getattr(user_package, 'postgresql_databases', 0) or 0
+    except Exception:
+        pass
+
+    pg_limit_display = "Unlimited" if pg_limit == 0 else str(pg_limit)
+
     return render(request, 'postgresql/index.html', {
         'databases': databases,
         'userlists': userlists,
+        'pg_limit': pg_limit,
+        'pg_limit_display': pg_limit_display,
     })
 
 
@@ -74,17 +89,21 @@ def pdb_make(request):
             messages.error(request, 'Database name must be at least 2 characters long.')
             return redirect('/module/postgresql/')
 
-        # Package database limit check
+        # Package database limit check for PostgreSQL
         try:
             user_data = get_user_data_by_id(request.user.id)
             pkg_id = user_data.get('pkg_id') if user_data else None
             if pkg_id:
                 user_package = Package.objects.filter(id=pkg_id).first()
-                if user_package and user_package.databases != 0:
-                    current_dbs = postgresql_filter(f"{request.user.username}_").get("matched", 0)
-                    if current_dbs >= user_package.databases:
-                        messages.error(request, 'Database limit exceeded.')
-                        return redirect('/module/postgresql/')
+                if user_package:
+                    pg_limit = getattr(user_package, 'postgresql_databases', 0)
+                    if pg_limit is None:
+                        pg_limit = 0
+                    if pg_limit != 0:
+                        current_dbs = postgresql_filter(f"{request.user.username}_").get("matched", 0)
+                        if current_dbs >= pg_limit:
+                            messages.error(request, f'PostgreSQL database limit ({pg_limit}) reached for your package.')
+                            return redirect('/module/postgresql/')
         except Exception:
             pass
 
@@ -493,10 +512,13 @@ def home(request):
     ).first()
 
     if user_package:
+        pg_limit = getattr(user_package, 'postgresql_databases', 0)
+        if pg_limit is None:
+            pg_limit = 0
         pkg_data = {
             'pdisk_space': check_limit(user_package.disk_space),
             'pdisk_use_db': db_size,
-            'pdatabases': check_limit(user_package.databases),
+            'pdatabases': check_limit(pg_limit),
             'pdatabases_use': db_count,
         }
     else:
