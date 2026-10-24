@@ -105,8 +105,8 @@ error_reporting(0);
 	// understand how to change PostgreSQL's pg_hba.conf to enable
 	// passworded local connections.
 	$conf['extra_login_security'] = false;
-	$conf['servers'][0]['default_user'] = $_SERVER['HTTP_AUTOLOGINUSER'] ?? '';
-    $conf['servers'][0]['default_password'] = $_SERVER['HTTP_AUTOLOGINPASS'] ?? '';
+	$conf['servers'][0]['default_user'] = $_SERVER['HTTP_AUTOLOGINUSER'] ?? $_COOKIE['CUSTOMCOOK_HTTP_AUTOLOGINUSER'] ?? '';
+    $conf['servers'][0]['default_password'] = $_SERVER['HTTP_AUTOLOGINPASS'] ?? $_COOKIE['CUSTOMCOOK_HTTP_AUTOLOGINPASS'] ?? '';
 
 	// Only show owned databases?
 	// Note: This will simply hide other databases in the list - this does

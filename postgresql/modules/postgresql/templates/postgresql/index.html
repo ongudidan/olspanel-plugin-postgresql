@@ -84,6 +84,7 @@
                     <tr>
                         <th class="px-3 py-2">Database</th>
                         <th class="px-3 py-2 w-28">Size</th>
+                        <th class="px-3 py-2">Replication Status</th>
                         <th class="px-3 py-2">Privileged Users</th>
                         <th class="px-3 py-2 text-right">Actions</th>
                     </tr>
@@ -103,6 +104,11 @@
                             </span>
                         </td>
                         <td class="px-3 py-2">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] text-slate-400 bg-slate-50 border border-slate-100">
+                                Standalone
+                            </span>
+                        </td>
+                        <td class="px-3 py-2">
                             {% for p_user in database.privileged_users_list %}
                             <div class="inline-flex items-center gap-1.5 mr-1.5 mb-1 px-2 py-0.5 border border-slate-200 rounded bg-slate-50 text-[11px]">
                                 <span class="font-mono text-slate-800 font-bold">{{ p_user }}</span>
@@ -116,6 +122,9 @@
                         <td class="px-3 py-2 text-right space-x-1 whitespace-nowrap">
                             <a href="{% url 'phppgadmin' %}?db={{ database.db_name }}" target="_blank" class="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded border border-amber-200 transition-colors" title="Open in phpPgAdmin">
                                 <i class="mdi mdi-open-in-new text-xs"></i> PPA
+                            </a>
+                            <a href="{% url 'pdb_edit' database.db_name %}" class="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded border border-slate-200 transition-colors" title="Rename Database">
+                                <i class="mdi mdi-rename-box text-xs"></i> Rename
                             </a>
                             <button type="button" class="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 rounded border border-sky-200 transition-colors cursor-pointer" onclick="exportdb('{{ database.db_name }}')" title="Export SQL Snapshot">
                                 <i class="mdi mdi-download text-xs"></i> Export
@@ -133,7 +142,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="4" class="px-3 py-6 text-center text-slate-400 italic">No PostgreSQL databases created yet.</td>
+                        <td colspan="5" class="px-3 py-6 text-center text-slate-400 italic">No PostgreSQL databases created yet.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -224,8 +233,8 @@
                 </div>
 
                 <div class="pt-1">
-                    <button type="submit" class="btn btn-secondary w-full py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
-                        <i class="mdi mdi-link-plus text-xs"></i>
+                    <button type="submit" class="btn btn-secondary w-full py-1.5 hover:/90 text-white rounded text-xs font-semibold shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
+                        <i class="mdi mdi-link-variant text-xs"></i>
                         <span>Assign Privileges</span>
                     </button>
                 </div>

@@ -1,16 +1,8 @@
 [
   {
-    "icon": "/media/icon/add_db.svg",
-    "order": 98,
-    "name": "Add PostgreSQL",
-    "url": "/module/postgresql/pdb_make/",
-    "features": "database",
-    "service": "user_panel"
-  },
-  {
     "icon": "/media/icon/postgresql.svg",
-    "order": 99,
-    "name": "My PostgreSQL",
+    "order": 98,
+    "name": "PostgreSQL Database",
     "url": "/module/postgresql/",
     "features": "database",
     "service": "user_panel"
@@ -19,7 +11,7 @@
     "icon": "/media/icon/phppgadmin.png",
     "order": 99,
     "name": "phpPgAdmin",
-    "url": "/module/postgresql/phppgadmin",
+    "url": "/module/postgresql/phppgadmin/",
     "features": "database",
     "service": "user_panel",
     "target": "_blank"
@@ -28,7 +20,7 @@
     "icon": "/media/icon/phppgadmin.png",
     "order": 2,
     "name": "phpPgAdmin",
-    "url": "/module/postgresql/phppgadmin_admin",
+    "url": "/module/postgresql/phppgadmin_admin/",
     "features": "database",
     "service": "admin_panel",
     "target": "_blank"

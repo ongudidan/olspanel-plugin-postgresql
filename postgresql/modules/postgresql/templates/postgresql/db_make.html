@@ -1,0 +1,44 @@
+{% extends "users/base.html" %}
+{% block title %}Manage PostgreSQL Database{% endblock title %}
+
+{% block content %}
+<div class="max-w-2xl">
+    <div class="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+        <!-- Card Header -->
+        <div class="px-5 py-3.5 bg-white border-b border-slate-200 flex items-center justify-between">
+            <h4 class="text-sm font-semibold text-slate-900 m-0 flex items-center gap-2">
+                <i class="mdi mdi-database-edit-outline text-brand text-base"></i> Rename Database ({{ full_db }})
+            </h4>
+            <a href="{% url 'postgresql_index' %}" class="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-brand transition-colors">
+                <i class="mdi mdi-arrow-left"></i> Back to Databases
+            </a>
+        </div>
+
+        <!-- Form Body -->
+        <div class="p-5">
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+                <div class="space-y-1">
+                    <label for="dbname" class="block text-xs font-semibold text-slate-700">New Database Name <span class="text-rose-500">*</span></label>
+                    <div class="flex rounded-md shadow-xs">
+                        <span class="inline-flex items-center px-3 py-2 border border-r-0 border-slate-200 bg-slate-50 text-slate-600 text-xs font-mono font-bold rounded-l-md select-none">
+                            {{ user.username }}_
+                        </span>
+                        <input type="text" id="dbname" name="dbname" value="{{ db_name }}" required placeholder="dbname" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-r-md text-xs font-mono font-semibold text-slate-800 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-all">
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-1">Database identifier prefix is automatically enforced for security.</p>
+                </div>
+
+                <!-- Actions -->
+                <div class="pt-2">
+                    <button type="submit" class="btn btn-secondary inline-flex items-center gap-1.5 px-4 py-2 hover:/90 text-white text-xs font-semibold rounded-md shadow-xs transition-colors cursor-pointer">
+                        <i class="mdi mdi-content-save-outline"></i> Rename Database
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% include "users/footer.html" %}
+{% endblock content %}

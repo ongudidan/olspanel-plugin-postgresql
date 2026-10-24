@@ -6,6 +6,7 @@ urlpatterns = [
     path('dbs/', views.dbs, name='postgresql_dbs'),
     path('pdb_make/', views.pdb_make, name='pdb_make'),
     path('pdb_delete/<str:db_name>/', views.pdb_delete, name='pdb_delete'),
+    path('pdb_edit/<str:db_name>/', views.pdb_edit, name='pdb_edit'),
     path('pdb_user_add/', views.pdb_user_add, name='pdb_user_add'),
     path('pdb_user_delete/', views.pdb_user_delete, name='pdb_user_delete'),
     path('pdb_user_edit/<str:db_user>/', views.pdb_user_edit, name='pdb_user_edit'),

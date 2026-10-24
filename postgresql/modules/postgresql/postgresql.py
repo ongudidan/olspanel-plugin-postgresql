@@ -217,10 +217,11 @@ def create_postgresql_db(username, db_name):
     if not success:
         return False, err
 
-    # 4. Revoke public connect and grant to main user
+    # 4. Set owner, revoke public connect, and grant to main user
+    owner_sql = f'ALTER DATABASE "{full_db}" OWNER TO "{username}";'
     revoke_sql = f'REVOKE CONNECT ON DATABASE "{full_db}" FROM PUBLIC;'
     grant_sql = f'GRANT ALL PRIVILEGES ON DATABASE "{full_db}" TO "{username}";'
-    run_pg_cmd([revoke_sql, grant_sql], db="postgres")
+    run_pg_cmd([owner_sql, revoke_sql, grant_sql], db="postgres")
 
     # 5. Inside the new database, grant schema permissions to main user
     inside_sqls = [
@@ -229,7 +230,8 @@ def create_postgresql_db(username, db_name):
         f'GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "{username}";',
         f'GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO "{username}";',
         f'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO "{username}";',
-        f'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "{username}";'
+        f'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "{username}";',
+        f'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO "{username}";'
     ]
     run_pg_cmd(inside_sqls, db=full_db)
 
@@ -251,6 +253,46 @@ def delete_postgresql_db(username, db_name):
     if not success:
         return False, err
     return True, f"Database '{db_name}' deleted successfully."
+
+
+def rename_postgresql_db(username, old_db, new_db):
+    """Rename a PostgreSQL database, terminating active connections first."""
+    prefix = f"{username}_"
+    if not old_db.startswith(prefix):
+        return False, "Unauthorized: database does not match your account prefix."
+
+    clean_new = new_db.strip()
+    if clean_new.startswith(prefix):
+        full_new_db = clean_new
+    else:
+        full_new_db = f"{prefix}{clean_new}"
+
+    try:
+        clean_pg_identifier(old_db)
+        clean_pg_identifier(full_new_db)
+    except ValueError as e:
+        return False, str(e)
+
+    if old_db == full_new_db:
+        return True, "Database name unchanged."
+
+    # Check if target exists
+    check_query = f"SELECT 1 FROM pg_database WHERE datname='{full_new_db}';"
+    success, output = run_pg_cmd(check_query, db="postgres")
+    if success and output == "1":
+        return False, f"Database '{full_new_db}' already exists."
+
+    # Terminate existing connections on old_db
+    term_sql = f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{old_db}' AND pid <> pg_backend_pid();"
+    run_pg_cmd(term_sql, db="postgres")
+
+    # Rename
+    alter_sql = f'ALTER DATABASE "{old_db}" RENAME TO "{full_new_db}";'
+    success, err = run_pg_cmd(alter_sql, db="postgres")
+    if not success:
+        return False, err
+
+    return True, f"Database '{old_db}' renamed to '{full_new_db}' successfully."
 
 
 def create_postgresql_user(username, db_user, db_pass):
@@ -343,10 +385,30 @@ def grant_postgresql_user_privileges(username, db_user, db_name, privs_list):
     except ValueError as e:
         return False, str(e)
 
+    # Ensure main account user is granted membership in the db_user role
+    # so that phpPgAdmin and the user account can manage objects created by db_user
+    run_pg_cmd(f'GRANT "{db_user}" TO "{username}";', db="postgres")
+
+    # 1. Reset any existing schema and default privileges on the database for clean grant update
+    reset_sqls = [
+        f'REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM "{db_user}";',
+        f'REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM "{db_user}";',
+        f'REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM "{db_user}";',
+        f'REVOKE ALL PRIVILEGES ON SCHEMA public FROM "{db_user}";',
+    ]
+    for creator in ['postgres', username, db_user]:
+        reset_sqls.extend([
+            f'ALTER DEFAULT PRIVILEGES FOR ROLE "{creator}" IN SCHEMA public REVOKE ALL ON TABLES FROM "{db_user}";',
+            f'ALTER DEFAULT PRIVILEGES FOR ROLE "{creator}" IN SCHEMA public REVOKE ALL ON SEQUENCES FROM "{db_user}";',
+            f'ALTER DEFAULT PRIVILEGES FOR ROLE "{creator}" IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM "{db_user}";'
+        ])
+    run_pg_cmd(reset_sqls, db=db_name)
+    run_pg_cmd(f'REVOKE ALL PRIVILEGES ON DATABASE "{db_name}" FROM "{db_user}";', db="postgres")
+
     clean_privs = [p.lower().strip() for p in privs_list]
     is_all = ('all privileges' in clean_privs) or ('all' in clean_privs)
 
-    # 1. On database level
+    # 2. On database level
     db_sqls = []
     if is_all:
         db_sqls.append(f'GRANT ALL PRIVILEGES ON DATABASE "{db_name}" TO "{db_user}";')
@@ -357,7 +419,7 @@ def grant_postgresql_user_privileges(username, db_user, db_name, privs_list):
 
     run_pg_cmd(db_sqls, db="postgres")
 
-    # 2. Inside the target database
+    # 3. Inside the target database
     inside_sqls = []
     if is_all:
         inside_sqls.extend([
@@ -365,10 +427,13 @@ def grant_postgresql_user_privileges(username, db_user, db_name, privs_list):
             f'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "{db_user}";',
             f'GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "{db_user}";',
             f'GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO "{db_user}";',
-            f'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO "{db_user}";',
-            f'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "{db_user}";',
-            f'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO "{db_user}";'
         ])
+        for creator in ['postgres', username, db_user]:
+            inside_sqls.extend([
+                f'ALTER DEFAULT PRIVILEGES FOR ROLE "{creator}" IN SCHEMA public GRANT ALL ON TABLES TO "{db_user}";',
+                f'ALTER DEFAULT PRIVILEGES FOR ROLE "{creator}" IN SCHEMA public GRANT ALL ON SEQUENCES TO "{db_user}";',
+                f'ALTER DEFAULT PRIVILEGES FOR ROLE "{creator}" IN SCHEMA public GRANT ALL ON FUNCTIONS TO "{db_user}";'
+            ])
     else:
         inside_sqls.append(f'GRANT USAGE ON SCHEMA public TO "{db_user}";')
         if 'create' in clean_privs:
@@ -378,22 +443,19 @@ def grant_postgresql_user_privileges(username, db_user, db_name, privs_list):
         granted_table_privs = [p.upper() for p in table_priv_candidates if p in clean_privs]
         if granted_table_privs:
             priv_str = ", ".join(granted_table_privs)
-            inside_sqls.extend([
-                f'GRANT {priv_str} ON ALL TABLES IN SCHEMA public TO "{db_user}";',
-                f'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT {priv_str} ON TABLES TO "{db_user}";'
-            ])
+            inside_sqls.append(f'GRANT {priv_str} ON ALL TABLES IN SCHEMA public TO "{db_user}";')
+            for creator in ['postgres', username, db_user]:
+                inside_sqls.append(f'ALTER DEFAULT PRIVILEGES FOR ROLE "{creator}" IN SCHEMA public GRANT {priv_str} ON TABLES TO "{db_user}";')
 
         if any(p in clean_privs for p in ['select', 'update', 'usage']):
-            inside_sqls.extend([
-                f'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "{db_user}";',
-                f'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO "{db_user}";'
-            ])
+            inside_sqls.append(f'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "{db_user}";')
+            for creator in ['postgres', username, db_user]:
+                inside_sqls.append(f'ALTER DEFAULT PRIVILEGES FOR ROLE "{creator}" IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO "{db_user}";')
 
         if 'execute' in clean_privs:
-            inside_sqls.extend([
-                f'GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO "{db_user}";',
-                f'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO "{db_user}";'
-            ])
+            inside_sqls.append(f'GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO "{db_user}";')
+            for creator in ['postgres', username, db_user]:
+                inside_sqls.append(f'ALTER DEFAULT PRIVILEGES FOR ROLE "{creator}" IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO "{db_user}";')
 
     success, err = run_pg_cmd(inside_sqls, db=db_name)
     if not success:
@@ -419,15 +481,19 @@ def revoke_postgresql_user_privileges(username, db_user, db_name):
         f'REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM "{db_user}";',
         f'REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM "{db_user}";',
         f'REVOKE ALL PRIVILEGES ON SCHEMA public FROM "{db_user}";',
-        f'ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM "{db_user}";',
-        f'ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM "{db_user}";',
-        f'ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM "{db_user}";'
     ]
+    for creator in ['postgres', username, db_user]:
+        inside_sqls.extend([
+            f'ALTER DEFAULT PRIVILEGES FOR ROLE "{creator}" IN SCHEMA public REVOKE ALL ON TABLES FROM "{db_user}";',
+            f'ALTER DEFAULT PRIVILEGES FOR ROLE "{creator}" IN SCHEMA public REVOKE ALL ON SEQUENCES FROM "{db_user}";',
+            f'ALTER DEFAULT PRIVILEGES FOR ROLE "{creator}" IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM "{db_user}";'
+        ])
     run_pg_cmd(inside_sqls, db=db_name)
 
     # 2. On database level
     db_sqls = [
-        f'REVOKE ALL PRIVILEGES ON DATABASE "{db_name}" FROM "{db_user}";'
+        f'REVOKE ALL PRIVILEGES ON DATABASE "{db_name}" FROM "{db_user}";',
+        f'REVOKE CONNECT ON DATABASE "{db_name}" FROM "{db_user}";'
     ]
     success, err = run_pg_cmd(db_sqls, db="postgres")
     if not success:
@@ -448,6 +514,7 @@ def get_postgresql_user_db_privileges(username, db_user, db_name):
     if not db_name.startswith(f"{username}_") or not db_user.startswith(f"{username}_"):
         return defaults
 
+    # 1. Check connect privilege
     check_query = f"SELECT has_database_privilege('{db_user}', '{db_name}', 'CONNECT');"
     success, out = run_pg_cmd(check_query, db="postgres")
     if not success or out != "t":
@@ -455,6 +522,7 @@ def get_postgresql_user_db_privileges(username, db_user, db_name):
 
     defaults['connect'] = True
 
+    # 2. Database level privileges
     check_create = f"SELECT has_database_privilege('{db_user}', '{db_name}', 'CREATE');"
     s, out_create = run_pg_cmd(check_create, db="postgres")
     if s and out_create == "t":
@@ -465,13 +533,41 @@ def get_postgresql_user_db_privileges(username, db_user, db_name):
     if s and out_temp == "t":
         defaults['temporary'] = True
 
+    # 3. Schema level privileges
     s, out_usage = run_pg_cmd(f"SELECT has_schema_privilege('{db_user}', 'public', 'USAGE');", db=db_name)
     if s and out_usage == "t":
         defaults['usage'] = True
 
-    # Standard table capabilities if connected
-    for k in ['select', 'insert', 'update', 'delete', 'truncate', 'references', 'trigger', 'execute']:
-        defaults[k] = True
+    s, out_create_sch = run_pg_cmd(f"SELECT has_schema_privilege('{db_user}', 'public', 'CREATE');", db=db_name)
+    if s and out_create_sch == "t":
+        defaults['create'] = True
+
+    # 4. Table & routine privileges from default ACLs and existing objects
+    query_privs = f"""
+    SELECT DISTINCT lower(privilege_type) FROM (
+        SELECT a.privilege_type 
+        FROM pg_default_acl d, aclexplode(d.defaclacl) a 
+        WHERE pg_get_userbyid(a.grantee) = '{db_user}'
+        UNION
+        SELECT privilege_type 
+        FROM information_schema.role_table_grants 
+        WHERE grantee = '{db_user}' AND table_schema = 'public'
+        UNION
+        SELECT privilege_type 
+        FROM information_schema.role_routine_grants 
+        WHERE grantee = '{db_user}' AND specific_schema = 'public'
+        UNION
+        SELECT privilege_type 
+        FROM information_schema.role_usage_grants 
+        WHERE grantee = '{db_user}'
+    ) t;
+    """
+    s, out_privs = run_pg_cmd(query_privs, db=db_name)
+    if s and out_privs:
+        for p in out_privs.splitlines():
+            p_clean = p.strip().lower()
+            if p_clean in defaults:
+                defaults[p_clean] = True
 
     return defaults
 

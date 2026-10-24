@@ -113,6 +113,43 @@ def pdb_delete(request, db_name):
 
 @login_required
 @admincheck
+def pdb_edit(request, db_name):
+    """Rename a PostgreSQL database."""
+    username = request.user.username
+    prefix = f"{username}_"
+
+    if not db_name.startswith(prefix):
+        messages.error(request, 'You are not authorized to edit this database.')
+        return redirect('/module/postgresql/')
+
+    suffix = db_name[len(prefix):]
+
+    if request.method == 'POST':
+        new_name = request.POST.get('dbname', '').strip()
+        if not new_name:
+            messages.error(request, 'Database name cannot be empty.')
+            return render(request, 'postgresql/db_make.html', {'db_name': suffix, 'full_db': db_name})
+
+        if len(new_name) < 2:
+            messages.error(request, 'Database name must be at least 2 characters long.')
+            return render(request, 'postgresql/db_make.html', {'db_name': suffix, 'full_db': db_name})
+
+        success, msg = rename_postgresql_db(username, db_name, new_name)
+        if success:
+            messages.success(request, msg)
+            return redirect('/module/postgresql/')
+        else:
+            messages.error(request, msg)
+            return render(request, 'postgresql/db_make.html', {'db_name': suffix, 'full_db': db_name})
+
+    return render(request, 'postgresql/db_make.html', {
+        'db_name': suffix,
+        'full_db': db_name
+    })
+
+
+@login_required
+@admincheck
 def postgresql_delete_view(request, db_name):
     """Backward compatibility alias for pdb_delete."""
     return pdb_delete(request, db_name)
@@ -338,10 +375,8 @@ def phppgadmin_admin(request):
         messages.error(request, "Auto login failed.")
         return redirect('/whm/')
 
-    plugin_item = "phppgadmin"
+    plugin_item = "postgresql"
     headers = get_plugin_headers(plugin_item)
-    if not headers:
-        headers = get_plugin_headers("postgresql")
     if not headers:
         headers = {"HTTP_AUTOLOGINUSER": "%dbusername%", "HTTP_AUTOLOGINPASS": "%dbuserpass%"}
 
@@ -396,10 +431,8 @@ def phppgadmin(request):
         messages.error(request, "Auto login failed. Please ensure a PostgreSQL database exists.")
         return redirect('/module/postgresql/')
 
-    plugin_item = "phppgadmin"
+    plugin_item = "postgresql"
     headers = get_plugin_headers(plugin_item)
-    if not headers:
-        headers = get_plugin_headers("postgresql")
     if not headers:
         headers = {"HTTP_AUTOLOGINUSER": "%dbusername%", "HTTP_AUTOLOGINPASS": "%dbuserpass%"}
 
