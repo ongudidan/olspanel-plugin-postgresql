@@ -14,7 +14,13 @@
 	$rtl = (strcasecmp($lang['applangdir'], 'rtl') == 0);
 	
 	$cols = $rtl ? '*,'.$conf['left_width'] : $conf['left_width'].',*';
-	$mainframe = '<frame src="intro.php" name="detail" id="detail" frameborder="0" />'
+	if (isset($_SESSION['PPA_single_signon_only_db']) && !empty($_SESSION['PPA_single_signon_only_db'])) {
+		$serverKey = $conf['servers'][0]['host'].':'.$conf['servers'][0]['port'].':'.$conf['servers'][0]['sslmode'];
+		$target_db = htmlspecialchars(urlencode($_SESSION['PPA_single_signon_only_db']));
+		$mainframe = '<frame src="redirect.php?subject=database&amp;database=' . $target_db . '&amp;server=' . urlencode($serverKey) . '" name="detail" id="detail" frameborder="0" />';
+	} else {
+		$mainframe = '<frame src="intro.php" name="detail" id="detail" frameborder="0" />';
+	}
 ?>
 <frameset cols="<?php echo $cols ?>">
 

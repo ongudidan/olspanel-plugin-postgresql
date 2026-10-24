@@ -743,7 +743,7 @@
 					break;
 
 				case 'server':
-					$hide_users = !$data->isSuperUser();
+					$hide_users = false;
 					$tabs = array (
 						'databases' => array (
 							'title' => $lang['strdatabases'],
@@ -791,7 +791,7 @@
 							'title' => $lang['straccount'],
 							'url'   => $data->hasRoles() ? 'roles.php' : 'users.php',
 							'urlvars' => array('subject' => 'server', 'action' => 'account'),
-							'hide'  => !$hide_users,
+							'hide'  => $data->isSuperUser(),
 							'help'  => 'pg.role',
 							'icon'  => 'User',
 						),
@@ -799,7 +799,7 @@
 							'title' => $lang['strtablespaces'],
 							'url'   => 'tablespaces.php',
 							'urlvars' => array('subject' => 'server'),
-							'hide'  => (!$data->hasTablespaces()),
+							'hide'  => (!$data->hasTablespaces() || !$data->isSuperUser()),
 							'help'  => 'pg.tablespace',
 							'icon'  => 'Tablespaces',
 						),

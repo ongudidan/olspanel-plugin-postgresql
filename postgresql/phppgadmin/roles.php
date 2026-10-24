@@ -676,6 +676,11 @@
 				)
 			),
 		);
+
+		if (!$data->isSuperUser()) {
+			unset($actions['drop']);
+			unset($actions['alter']);
+		}
 		
 		$misc->printTable($roles, $columns, $actions, 'roles-roles', $lang['strnoroles']);
 
@@ -693,11 +698,21 @@
 				'content' => $lang['strcreaterole']
 			)
 		);
+		if (!$data->isSuperUser()) {
+			unset($navlinks['create']);
+		}
 		$misc->printNavLinks($navlinks, 'roles-roles', get_defined_vars());
 	}
 
 	$misc->printHeader($lang['strroles']);
 	$misc->printBody();
+
+	// Guard role management actions for non-superusers
+	if (!$data->isSuperUser() && in_array($action, array('create', 'save_create', 'alter', 'save_alter', 'confirm_drop', 'drop'))) {
+		doDefault();
+		$misc->printFooter();
+		exit;
+	}
 
 	switch ($action) {
 		case 'create':

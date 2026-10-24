@@ -107,6 +107,14 @@ if (isset($_GET['auto_login']) && $_GET['auto_login']) {
 		$_server_info['password'] = $_POST['loginPassword_'.md5($_POST['loginServer'])];
 
 		$misc->setServerInfo(null, $_server_info, $_POST['loginServer']);
+
+		// Handle single-database restriction if ?db= was supplied in auto_login URL
+		if (isset($_GET['db']) && !empty($_GET['db'])) {
+			$_SESSION['PPA_single_signon_only_db'] = $_GET['db'];
+		} else {
+			unset($_SESSION['PPA_single_signon_only_db']);
+		}
+
         $_reload_browser = true;
          header("Location: index.php");
         exit;
@@ -301,7 +309,31 @@ if (isset($_GET['auto_login']) && $_GET['auto_login']) {
 		// Connect to database and set the global $data variable
 		$data = $misc->getDatabaseAccessor($_curr_db);
 
-//	exit;
+		// Security check: If not superuser, guard direct access to forbidden databases
+		if (isset($_REQUEST['database']) && !empty($_REQUEST['database']) && !$data->isSuperUser()) {
+			$req_db = $_REQUEST['database'];
+			$login_user = $_server_info['username'] ?? '';
+			$allowed = false;
+			if (!in_array($req_db, array('postgres', 'template0', 'template1'))) {
+				if (!empty($login_user) && (strpos($req_db, $login_user . '_') === 0)) {
+					$allowed = true;
+				} else {
+					$owner_res = $data->getDatabaseOwner($req_db);
+					if ($owner_res && $owner_res->recordCount() > 0 && $owner_res->fields['usename'] === $login_user) {
+						$allowed = true;
+					}
+				}
+			}
+			if (isset($_SESSION['PPA_single_signon_only_db']) && !empty($_SESSION['PPA_single_signon_only_db'])) {
+				if ($req_db !== $_SESSION['PPA_single_signon_only_db']) {
+					$allowed = false;
+				}
+			}
+			if (!$allowed) {
+				echo "Access denied to database " . htmlspecialchars($req_db);
+				exit;
+			}
+		}
 		// If schema is defined and database supports schemas, then set the
 		// schema explicitly.
 		if (isset($_REQUEST['database']) && isset($_REQUEST['schema'])) {

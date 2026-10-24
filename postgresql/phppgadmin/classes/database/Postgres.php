@@ -457,12 +457,16 @@ function clean(&$str) {
 
 		$server_info = $misc->getServerInfo();
 
-		if (isset($conf['owned_only']) && $conf['owned_only'] && !$this->isSuperUser()) {
-			$username = $server_info['username'];
+		if (!$this->isSuperUser()) {
+			$username = $server_info['username'] ?? '';
 			$this->clean($username);
-			//$clause = " AND pg_has_role('{$username}'::name,pr.rolname,'USAGE')";
-			 $clause = " AND has_database_privilege('{$username}', pdb.datname, 'CONNECT')";
-			 	
+			if (isset($_SESSION['PPA_single_signon_only_db']) && !empty($_SESSION['PPA_single_signon_only_db'])) {
+				$only_db = $_SESSION['PPA_single_signon_only_db'];
+				$this->clean($only_db);
+				$clause = " AND pdb.datname = '{$only_db}' AND (pdb.datname LIKE '{$username}\_%' OR pr.rolname = '{$username}') AND pdb.datname NOT IN ('postgres', 'template0', 'template1')";
+			} else {
+				$clause = " AND (pdb.datname LIKE '{$username}\_%' OR pr.rolname = '{$username}') AND pdb.datname NOT IN ('postgres', 'template0', 'template1')";
+			}
 		}
 		else $clause = '';
 
@@ -6097,12 +6101,30 @@ function clean(&$str) {
 	 * @return All roles
 	 */
 	function getRoles($rolename = '') {
-		$sql = '
+		global $misc;
+
+		$server_info = $misc->getServerInfo();
+		$username = $server_info['username'] ?? '';
+
+		$where = array();
+		if ($rolename) {
+			$this->clean($rolename);
+			$where[] = "rolname != '{$rolename}'";
+		}
+
+		if (!$this->isSuperUser() && !empty($username)) {
+			$this->clean($username);
+			$where[] = "(rolname = '{$username}' OR rolname LIKE '{$username}\_%')";
+		}
+
+		$whereClause = count($where) > 0 ? ' WHERE ' . implode(' AND ', $where) : '';
+
+		$sql = "
 			SELECT rolname, rolsuper, rolcreatedb, rolcreaterole, rolinherit,
 				rolcanlogin, rolconnlimit, rolvaliduntil, rolconfig
-			FROM pg_catalog.pg_roles';
-		if($rolename) $sql .= " WHERE rolname!='{$rolename}'";
-		$sql .= ' ORDER BY rolname';
+			FROM pg_catalog.pg_roles
+			{$whereClause}
+			ORDER BY rolname";
 
 		return $this->selectSet($sql);
 	}
@@ -6113,7 +6135,18 @@ function clean(&$str) {
 	 * @return The role's data
 	 */
 	function getRole($rolename) {
+		global $misc;
 		$this->clean($rolename);
+
+		$server_info = $misc->getServerInfo();
+		$username = $server_info['username'] ?? '';
+
+		if (!$this->isSuperUser() && !empty($username)) {
+			if ($rolename !== $username && strpos($rolename, $username . '_') !== 0) {
+				include_once('./classes/ArrayRecordSet.php');
+				return new ArrayRecordSet(array());
+			}
+		}
 
 		$sql = "
 			SELECT rolname, rolsuper, rolcreatedb, rolcreaterole, rolinherit,
@@ -6164,8 +6197,22 @@ function clean(&$str) {
 	 * @return All users
 	 */
 	function getUsers() {
+		global $misc;
+
+		$server_info = $misc->getServerInfo();
+		$username = $server_info['username'] ?? '';
+
+		$where = array();
+		if (!$this->isSuperUser() && !empty($username)) {
+			$this->clean($username);
+			$where[] = "(usename = '{$username}' OR usename LIKE '{$username}\_%')";
+		}
+
+		$whereClause = count($where) > 0 ? ' WHERE ' . implode(' AND ', $where) : '';
+
 		$sql = "SELECT usename, usesuper, usecreatedb, valuntil AS useexpires, useconfig
 			FROM pg_user
+			{$whereClause}
 			ORDER BY usename";
 
 		return $this->selectSet($sql);
@@ -6177,7 +6224,18 @@ function clean(&$str) {
 	 * @return The user's data
 	 */
 	function getUser($username) {
+		global $misc;
 		$this->clean($username);
+
+		$server_info = $misc->getServerInfo();
+		$session_user = $server_info['username'] ?? '';
+
+		if (!$this->isSuperUser() && !empty($session_user)) {
+			if ($username !== $session_user && strpos($username, $session_user . '_') !== 0) {
+				include_once('./classes/ArrayRecordSet.php');
+				return new ArrayRecordSet(array());
+			}
+		}
 
 		$sql = "SELECT usename, usesuper, usecreatedb, valuntil AS useexpires, useconfig
 			FROM pg_user 

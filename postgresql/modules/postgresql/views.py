@@ -8,7 +8,7 @@ import zipfile
 import shutil
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-from django.http import JsonResponse, Http404, HttpResponse
+from django.http import JsonResponse, Http404, HttpResponse, HttpResponseForbidden
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse_lazy, reverse
 from django.contrib.auth.views import LoginView
@@ -396,6 +396,10 @@ def phppgadmin_admin(request):
     if not auto_login_url:
         auto_login_url = "/3rdparty/phppgadmin/redirect.php?auto_login=1"
 
+    target_db = request.GET.get('db')
+    if target_db:
+        auto_login_url += f"&db={target_db}"
+
     response = redirect(auto_login_url)
 
     cookie_prefix = "CUSTOMCOOK_"
@@ -454,6 +458,9 @@ def phppgadmin(request):
 
     target_db = request.GET.get('db')
     if target_db:
+        prefix = f"{parsed_username}_"
+        if not (target_db.startswith(prefix) or target_db == parsed_username):
+            return HttpResponseForbidden("You do not have access to this database.")
         auto_login_url += f"&db={target_db}"
 
     response = redirect(auto_login_url)

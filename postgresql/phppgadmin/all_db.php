@@ -449,6 +449,11 @@
 		if (!$data->hasDatabaseCollation()) unset($columns['lc_collate'], $columns['lc_ctype']);
 		if (!isset($data->privlist['database'])) unset($actions['privileges']);
 
+		if (!$data->isSuperUser()) {
+			unset($actions['drop']);
+			unset($actions['alter']);
+		}
+
 		$misc->printTable($databases, $columns, $actions, 'all_db-databases', $lang['strnodatabases']);
 
 		$navlinks = array (
@@ -465,6 +470,9 @@
 			'content' => $lang['strcreatedatabase']
 		    )
 		);
+		if (!$data->isSuperUser()) {
+			unset($navlinks['create']);
+		}
 		$misc->printNavLinks($navlinks, 'all_db-databases', get_defined_vars());
 	}
 
@@ -500,6 +508,13 @@
 
 	$misc->printHeader($lang['strdatabases']);
 	$misc->printBody();
+
+	// Guard database creation and deletion for non-superusers
+	if (!$data->isSuperUser() && in_array($action, array('create', 'save_create', 'alter', 'confirm_alter', 'confirm_drop', 'drop'))) {
+		doDefault();
+		$misc->printFooter();
+		exit;
+	}
 
 	switch ($action) {
 		case 'export':

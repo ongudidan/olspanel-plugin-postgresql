@@ -352,10 +352,15 @@
 				)
 			),
 		);
+
+		if (!$data->isSuperUser()) {
+			unset($actions['drop']);
+			unset($actions['edit']);
+		}
 		
 		$misc->printTable($users, $columns, $actions, 'users-users', $lang['strnousers']);
 
-		$misc->printNavLinks(array ('create' => array (
+		$navlinks = array ('create' => array (
 				'attr'=> array (
 					'href' => array (
 						'url' => 'users.php',
@@ -366,12 +371,23 @@
 					)
 				),
 				'content' => $lang['strcreateuser']
-			)), 'users-users', get_defined_vars());
+		));
+		if (!$data->isSuperUser()) {
+			unset($navlinks['create']);
+		}
+		$misc->printNavLinks($navlinks, 'users-users', get_defined_vars());
 
 	}
 
 	$misc->printHeader($lang['strusers']);
 	$misc->printBody();
+
+	// Guard user management actions for non-superusers
+	if (!$data->isSuperUser() && in_array($action, array('create', 'save_create', 'edit', 'save_edit', 'confirm_drop', 'drop'))) {
+		doDefault();
+		$misc->printFooter();
+		exit;
+	}
 
 	switch ($action) {
 		case 'changepassword':
