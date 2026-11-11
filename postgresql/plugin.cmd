@@ -184,18 +184,113 @@ fi
 
 # 7. Install PHP PostgreSQL extensions for CLI, CGI, and OpenLiteSpeed LSPHP
 echo "🐘 Installing PHP PostgreSQL client extensions..."
+
+SYS_PHP_VER=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || php-cgi -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || true)
+
 if command -v apt-get >/dev/null 2>&1; then
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y 2>/dev/null || true
-  apt-get install -y --no-install-recommends \
-    php-pgsql \
-    php8.1-pgsql php8.2-pgsql php8.3-pgsql php8.4-pgsql php8.5-pgsql \
-    lsphp81-pgsql lsphp82-pgsql lsphp83-pgsql lsphp84-pgsql lsphp85-pgsql 2>/dev/null || true
+
+  PGSQL_CANDIDATES=(
+    php-pgsql
+    php-pdo-pgsql
+    php7.4-pgsql php8.0-pgsql php8.1-pgsql php8.2-pgsql php8.3-pgsql php8.4-pgsql php8.5-pgsql
+    lsphp74-pgsql lsphp80-pgsql lsphp81-pgsql lsphp82-pgsql lsphp83-pgsql lsphp84-pgsql lsphp85-pgsql
+  )
+  if [ -n "$SYS_PHP_VER" ]; then
+    PGSQL_CANDIDATES+=("php${SYS_PHP_VER}-pgsql")
+  fi
+
+  for dir in /usr/local/lsws/lsphp*; do
+    if [ -d "$dir" ]; then
+      ver="$(basename "$dir")"
+      PGSQL_CANDIDATES+=("${ver}-pgsql")
+    fi
+  done
+
+  VALID_PKGS=()
+  for pkg in "${PGSQL_CANDIDATES[@]}"; do
+    if apt-cache show "$pkg" >/dev/null 2>&1; then
+      VALID_PKGS+=("$pkg")
+    fi
+  done
+
+  if [ ${#VALID_PKGS[@]} -gt 0 ]; then
+    UNIQUE_PKGS=($(printf "%s\n" "${VALID_PKGS[@]}" | sort -u))
+    apt-get install -y --no-install-recommends "${UNIQUE_PKGS[@]}" 2>/dev/null || true
+  fi
+
+  # Fallback: Loop individual installs in case batch had dependency collisions
+  for pkg in php-pgsql php8.5-pgsql php8.4-pgsql php8.3-pgsql php8.2-pgsql php8.1-pgsql; do
+    if apt-cache show "$pkg" >/dev/null 2>&1; then
+      apt-get install -y --no-install-recommends "$pkg" 2>/dev/null || true
+    fi
+  done
+
+  if command -v phpenmod >/dev/null 2>&1; then
+    phpenmod pgsql 2>/dev/null || true
+    phpenmod pdo_pgsql 2>/dev/null || true
+  fi
+
 elif command -v dnf >/dev/null 2>&1; then
-  dnf install -y php-pgsql php8.1-pgsql php8.2-pgsql php8.3-pgsql php8.4-pgsql lsphp81-pgsql lsphp82-pgsql lsphp83-pgsql lsphp84-pgsql 2>/dev/null || true
+  PGSQL_CANDIDATES=(
+    php-pgsql
+    php-pdo
+    lsphp74-pgsql lsphp80-pgsql lsphp81-pgsql lsphp82-pgsql lsphp83-pgsql lsphp84-pgsql lsphp85-pgsql
+    php81-php-pgsql php82-php-pgsql php83-php-pgsql php84-php-pgsql php85-php-pgsql
+  )
+  if [ -n "$SYS_PHP_VER" ]; then
+    num_ver="$(echo "$SYS_PHP_VER" | tr -d '.')"
+    PGSQL_CANDIDATES+=("php${num_ver}-php-pgsql" "lsphp${num_ver}-pgsql")
+  fi
+  for dir in /usr/local/lsws/lsphp*; do
+    if [ -d "$dir" ]; then
+      ver="$(basename "$dir")"
+      PGSQL_CANDIDATES+=("${ver}-pgsql")
+    fi
+  done
+
+  VALID_PKGS=()
+  for pkg in "${PGSQL_CANDIDATES[@]}"; do
+    if dnf info "$pkg" >/dev/null 2>&1; then
+      VALID_PKGS+=("$pkg")
+    fi
+  done
+
+  if [ ${#VALID_PKGS[@]} -gt 0 ]; then
+    UNIQUE_PKGS=($(printf "%s\n" "${VALID_PKGS[@]}" | sort -u))
+    dnf install -y --setopt=strict=0 "${UNIQUE_PKGS[@]}" 2>/dev/null || true
+  fi
+
+  for pkg in php-pgsql lsphp81-pgsql lsphp82-pgsql lsphp83-pgsql lsphp84-pgsql lsphp85-pgsql; do
+    dnf install -y --setopt=strict=0 "$pkg" 2>/dev/null || true
+  done
+
 elif command -v yum >/dev/null 2>&1; then
-  yum install -y php-pgsql php8.1-pgsql php8.2-pgsql php8.3-pgsql php8.4-pgsql lsphp81-pgsql lsphp82-pgsql lsphp83-pgsql lsphp84-pgsql 2>/dev/null || true
+  PGSQL_CANDIDATES=(
+    php-pgsql
+    php-pdo
+    lsphp74-pgsql lsphp80-pgsql lsphp81-pgsql lsphp82-pgsql lsphp83-pgsql lsphp84-pgsql lsphp85-pgsql
+    php81-php-pgsql php82-php-pgsql php83-php-pgsql php84-php-pgsql php85-php-pgsql
+  )
+  VALID_PKGS=()
+  for pkg in "${PGSQL_CANDIDATES[@]}"; do
+    if yum info "$pkg" >/dev/null 2>&1; then
+      VALID_PKGS+=("$pkg")
+    fi
+  done
+
+  if [ ${#VALID_PKGS[@]} -gt 0 ]; then
+    UNIQUE_PKGS=($(printf "%s\n" "${VALID_PKGS[@]}" | sort -u))
+    yum install -y "${UNIQUE_PKGS[@]}" 2>/dev/null || true
+  fi
+
+  for pkg in php-pgsql lsphp81-pgsql lsphp82-pgsql lsphp83-pgsql lsphp84-pgsql lsphp85-pgsql; do
+    yum install -y "$pkg" 2>/dev/null || true
+  done
 fi
+
+pkill -9 lsphp 2>/dev/null || killall -9 lsphp 2>/dev/null || true
 
 # 8. Ensure package database schema supports PostgreSQL limits
 echo "🔄 Ensuring package schema supports PostgreSQL limits..."
