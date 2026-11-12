@@ -1,74 +1,61 @@
 <style>
-/* --- PostgreSQL Module Loader Only (No Conflict) --- */
 .pgsql-loader {
-  border: 2px solid #f3f3f3;
-  border-top: 2px solid #4CAF50;
+  border: 2px solid #e2e8f0;
+  border-top: 2px solid var(--brand-color, #ef6d19);
   border-radius: 50%;
-  width: 14px;
-  height: 14px;
-  animation: pgsql-spin 1s linear infinite;
+  width: 11px;
+  height: 11px;
+  animation: pgsql-spin 0.8s linear infinite;
   display: inline-block;
   vertical-align: middle;
-  margin-left: 6px;
 }
-
 @keyframes pgsql-spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
 </style>
 
- <div class="col-xl-3 col-sm-6">
-                      <div class="card card-default">
-                        <div class="card-header">
-                          <h2 id="pg-count">
-						  Loading... <span class="pgsql-loader"></span>
-						  
-						  </h2>
-                          
-                          <div class="sub-title">
-                            <span class="mr-1">PostgreSQL Database</span> 
-                            
-                          </div>
-                        </div>
-                         </div>
-                    </div>
+<!-- PostgreSQL Databases -->
+<div class="flex items-center justify-between py-1.5 border-t border-slate-100 text-xs">
+    <span class="text-slate-500 font-medium">PostgreSQL Databases</span>
+    <span id="pg-count" class="font-mono text-slate-800 text-[11px] font-semibold">
+        {% if pkg_data %}{{ pkg_data.pdb_count|default:"0" }}{% else %}<span class="pgsql-loader"></span>{% endif %}
+    </span>
+</div>
 
-<div class="col-xl-3 col-sm-6">
-                      <div class="card card-default">
-                        <div class="card-header">
-                          <h2 id="pg-disk">
-						  Loading... <span class="pgsql-loader"></span>
-						  
-						  </h2>
-                          
-                          <div class="sub-title">
-                            <span class="mr-1">PostgreSQL Disk</span> 
-                            
-                          </div>
-                        </div>
-                         </div>
-                    </div>
-
+<!-- PostgreSQL Disk -->
+<div class="flex items-center justify-between py-1.5 border-t border-slate-100 text-xs">
+    <span class="text-slate-500 font-medium">PostgreSQL Disk</span>
+    <span id="pg-disk" class="font-mono text-slate-800 text-[11px] font-semibold">
+        {% if pkg_data %}{{ pkg_data.pdbsize|default:"0.00 bytes" }}{% else %}<span class="pgsql-loader"></span>{% endif %}
+    </span>
+</div>
 
 <script>
-document.addEventListener("DOMContentLoaded", function() {
-  fetch("/module/postgresql/admin_home/?format=json")
-    .then(response => response.json())
-    .then(data => {
-      // Replace loader with live data
-      document.getElementById("pg-count").innerHTML =
-        `${data.pdb_count}`;
- document.getElementById("pg-disk").innerHTML =
-        `${data.pdbsize}`;
-      
-    })
-    .catch(err => {
-      document.getElementById("pg-count").innerHTML =
-        "<span style='color:red'>Error loading</span>";
-		 document.getElementById("pg-disk").innerHTML =
-        "<span style='color:red'>Error loading</span>";
-      
-    });
-});
+(function() {
+  function loadPgAdminStats() {
+    fetch("/module/postgresql/admin_home/?format=json")
+      .then(response => {
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        return response.json();
+      })
+      .then(data => {
+        const countEl = document.getElementById("pg-count");
+        const diskEl = document.getElementById("pg-disk");
+        if (countEl) countEl.textContent = (data && data.pdb_count !== undefined) ? data.pdb_count : '0';
+        if (diskEl) diskEl.textContent = (data && data.pdbsize !== undefined) ? data.pdbsize : '0.00 bytes';
+      })
+      .catch(err => {
+        const countEl = document.getElementById("pg-count");
+        const diskEl = document.getElementById("pg-disk");
+        if (countEl && countEl.querySelector('.pgsql-loader')) countEl.innerHTML = "<span class='text-slate-400'>0</span>";
+        if (diskEl && diskEl.querySelector('.pgsql-loader')) diskEl.innerHTML = "<span class='text-slate-400'>0.00 bytes</span>";
+      });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", loadPgAdminStats);
+  } else {
+    loadPgAdminStats();
+  }
+})();
 </script>
