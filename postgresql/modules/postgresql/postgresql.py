@@ -411,6 +411,9 @@ def grant_postgresql_user_privileges(username, db_user, db_name, privs_list):
     # 2. On database level
     db_sqls = []
     if is_all:
+        # Reassign database ownership to db_user so application frameworks (Knex, Prisma, Django, TypeORM)
+        # can execute ALTER TABLE and schema migrations without encountering 42501 (must be owner of table)
+        db_sqls.append(f'ALTER DATABASE "{db_name}" OWNER TO "{db_user}";')
         db_sqls.append(f'GRANT ALL PRIVILEGES ON DATABASE "{db_name}" TO "{db_user}";')
     else:
         db_sqls.append(f'GRANT CONNECT, TEMPORARY ON DATABASE "{db_name}" TO "{db_user}";')
@@ -423,6 +426,7 @@ def grant_postgresql_user_privileges(username, db_user, db_name, privs_list):
     inside_sqls = []
     if is_all:
         inside_sqls.extend([
+            f'REASSIGN OWNED BY "{username}" TO "{db_user}";',
             f'GRANT ALL ON SCHEMA public TO "{db_user}";',
             f'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "{db_user}";',
             f'GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "{db_user}";',
@@ -434,6 +438,14 @@ def grant_postgresql_user_privileges(username, db_user, db_name, privs_list):
                 f'ALTER DEFAULT PRIVILEGES FOR ROLE "{creator}" IN SCHEMA public GRANT ALL ON SEQUENCES TO "{db_user}";',
                 f'ALTER DEFAULT PRIVILEGES FOR ROLE "{creator}" IN SCHEMA public GRANT ALL ON FUNCTIONS TO "{db_user}";'
             ])
+        # Ensure the main account user and phpPgAdmin retain full access and management rights
+        inside_sqls.extend([
+            f'GRANT ALL ON SCHEMA public TO "{username}";',
+            f'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "{username}";',
+            f'GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "{username}";',
+            f'ALTER DEFAULT PRIVILEGES FOR ROLE "{db_user}" IN SCHEMA public GRANT ALL ON TABLES TO "{username}";',
+            f'ALTER DEFAULT PRIVILEGES FOR ROLE "{db_user}" IN SCHEMA public GRANT ALL ON SEQUENCES TO "{username}";',
+        ])
     else:
         inside_sqls.append(f'GRANT USAGE ON SCHEMA public TO "{db_user}";')
         if 'create' in clean_privs:
